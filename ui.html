@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <style>
+    body { font: 12px/1.45 Arial, sans-serif; margin: 14px; }
+    .row { margin-bottom: 10px; }
+    label { display:block; font-weight:600; margin-bottom:6px; }
+    input[type="text"], select { width: 100%; padding: 9px 10px; box-sizing: border-box; }
+    .checks { display:flex; gap:12px; flex-wrap:wrap; }
+    .checks label { font-weight:400; margin:0; display:flex; gap:8px; align-items:center; }
+    button { padding: 10px 12px; width: 100%; cursor: pointer; font-weight:700; }
+    .hint { color:#555; margin-top: 8px; }
+    .log { margin-top: 12px; padding: 10px; background: #f6f6f6; height: 280px; overflow:auto; white-space: pre-wrap; border-radius: 8px;}
+    code { background:#eee; padding: 2px 4px; border-radius: 4px; }
+    .small { font-size:11px; color:#666; }
+  </style>
+</head>
+<body>
+  <div class="row">
+    <label>Root (верхний контейнер в Figma)</label>
+    <select id="rootSelect"></select>
+    <div class="small">Выбери <code>Ноут</code> или <code>итог</code> (top-level фреймы).</div>
+  </div>
+
+  <div class="row">
+    <label>Root name (ручной ввод)</label>
+    <input id="rootName" type="text" placeholder="Например: Ноут" value="Ноут" />
+  </div>
+
+  <div class="row checks">
+    <label><input id="onlyNumeric" type="checkbox" checked /> Экспортировать только фреймы с именами <code>1..7</code> (и <code>__D/__T/__M</code>)</label>
+    <label><input id="prefixRoot" type="checkbox" checked /> Добавлять префикс root к ключам</label>
+  </div>
+
+  <div class="row">
+    <button id="export">Export ZIP</button>
+    <div class="hint">
+      Экспортирует фреймы внутри выбранного root → <code>tilda_export.zip</code>
+    </div>
+  </div>
+
+  <div class="log" id="log">Инициализация…</div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script>
+    const logEl = document.getElementById('log');
+    const btn = document.getElementById('export');
+    const rootNameEl = document.getElementById('rootName');
+    const rootSelect = document.getElementById('rootSelect');
+    const onlyNumericEl = document.getElementById('onlyNumeric');
+    const prefixRootEl = document.getElementById('prefixRoot');
+
+    function log(s) { logEl.textContent += "\\n" + s; logEl.scrollTop = logEl.scrollHeight; }
+
+    parent.postMessage({ pluginMessage: { type: "INIT" } }, "*");
+
+    rootSelect.addEventListener('change', () => {
+      const v = rootSelect.value || "";
+      if (v) rootNameEl.value = v;
+    });
+
+    btn.onclick = () => {
+      logEl.textContent = "Export started…";
+      parent.postMessage({ pluginMessage: {
+        type: "EXPORT",
+        rootName: rootNameEl.value.trim(),
+        onlyNumeric: onlyNumericEl.checked,
+        prefixRoot: prefixRootEl.checked
+      } }, "*");
+    };
+
+    onmessage = async (event) => {
+      const msg = event.data.pluginMessage;
+      if (!msg) return;
+
+      if (msg.type === "INIT_DATA") {
+        const items = msg.topFrames || [];
+        rootSelect.innerHTML = '<option value="">(выбрать root)</option>' + items.map(n => `<option value="${n}">${n}</option>`).join("");
+        log("Готово. Выбери root и жми Export ZIP.");
+        return;
+      }
+
+      if (msg.type === "ERROR") {
+        log("ERROR: " + msg.text);
+        return;
+      }
+
+      if (msg.type === "PROGRESS") {
+        log(msg.text);
+        return;
+      }
+
+      if (msg.type === "DONE") {
+        log("Building ZIP…");
+        const zip = new JSZip();
+        msg.files.forEach(f => zip.file(f.path, f.content));
+        const blob = await zip.generateAsync({ type: "blob" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "tilda_export.zip";
+        a.click();
+
+        log("ZIP downloaded: tilda_export.zip");
+      }
+    };
+  </script>
+</body>
+</html>

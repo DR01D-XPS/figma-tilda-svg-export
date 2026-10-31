@@ -1,0 +1,10 @@
+{
+  "name": "Figma → Tilda SVG Export (no text) [Root-based v3]",
+  "id": "figma-to-tilda-svg-no-text-root-v3",
+  "api": "1.0.0",
+  "main": "code.js",
+  "ui": "ui.html",
+  "editorType": [
+    "figma"
+  ]
+}
